@@ -1,0 +1,87 @@
+name: CI
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: windows-latest  # استخدام Windows
+
+    steps:
+    - name: Check Required Secrets
+      shell: powershell
+      run: |
+        if (-not $env:RDP_USERNAME -or -not $env:RDP_PASSWORD) {
+          Write-Output "Error: Missing RDP_USERNAME or RDP_PASSWORD secrets."
+          exit 1
+        }
+
+    - name: Check Internet Connection
+      shell: powershell
+      run: |
+        $max_attempts = 3
+        $attempt = 1
+        while ($attempt -le $max_attempts) {
+          try {
+            $response = Test-Connection -ComputerName "google.com" -Count 1 -ErrorAction Stop
+            Write-Output "Internet connection established."
+            break
+          } catch {
+            if ($attempt -eq $max_attempts) {
+              Write-Output "No internet connection after $max_attempts attempts."
+              exit 1
+            } else {
+              Write-Output "Attempt $attempt failed. Retrying in 5 seconds..."
+              Start-Sleep -Seconds 5
+              $attempt++
+            }
+          }
+        }
+
+    - name: Enable Remote Desktop Protocol (RDP)
+      shell: powershell
+      run: |
+        try {
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Write-Output "RDP has been enabled."
+        } catch {
+          Write-Output "Error enabling RDP."
+          exit 1
+        }
+
+    - name: Set Password for Custom User
+      shell: powershell
+      run: |
+        $username = "${{ secrets.RDP_USERNAME }}"
+        $password = ConvertTo-SecureString "${{ secrets.RDP_PASSWORD }}" -AsPlainText -Force
+        $user = Get-WmiObject Win32_UserAccount -Filter "Name='$username'"
+        if ($user) {
+          Write-Output "User found, setting password..."
+          try {
+            ([ADSI]("WinNT://$env:COMPUTERNAME/$username,user")).SetPassword($password)
+            Write-Output "Password set successfully."
+          } catch {
+            Write-Output "Error setting password."
+            exit 1
+          }
+        } else {
+          Write-Output "User not found. Skipping password setup."
+        }
+
+    - name: Display Remote Access Information
+      shell: powershell
+      run: |
+        try {
+          $ipAddress = (Invoke-RestMethod -Uri "https://api.ipify.org").Trim()
+          Write-Output "You can access the RDP server using IP: $ipAddress with username '${{ secrets.RDP_USERNAME }}'."
+        } catch {
+          Write-Output "Error retrieving public IP address."
+          exit 1
+        }
+
+    - name: Cleanup Temporary Files
+      if: always()
+      shell: powershell
+      run: |
+        Write-Output "Cleaning up temporary files..."
+        # ضع هنا أي أوامر تنظيف أخرى تحتاجها
