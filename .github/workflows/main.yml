@@ -15,7 +15,7 @@ jobs:
         $attempt = 1
         while ($attempt -le $max_attempts) {
           try {
-            $response = Test-Connection -ComputerName "google.com" -Count 1 -ErrorAction Stop
+            $response = Invoke-WebRequest -Uri "https://www.google.com" -UseBasicParsing
             Write-Output "Internet connection established."
             break
           } catch {
@@ -47,8 +47,8 @@ jobs:
     - name: Set Password for Custom User
       shell: powershell
       run: |
-        $username = "User123_Admin"  # اسم المستخدم هنا
-        $password = ConvertTo-SecureString "S3cureP@ssw0rd!2024" -AsPlainText -Force  # كلمة المرور هنا
+        $username = "User123_Admin"
+        $password = ConvertTo-SecureString "S3cureP@ssw0rd!2024" -AsPlainText -Force
         $user = Get-WmiObject Win32_UserAccount -Filter "Name='$username'"
         if ($user) {
           Write-Output "User found, setting password..."
@@ -79,7 +79,7 @@ jobs:
           $ipAddress = (Invoke-RestMethod -Uri "https://api.ipify.org").Trim()
           Write-Output "You can access the RDP server using IP: $ipAddress with username 'User123_Admin'."
         } catch {
-          Write-Output "Error retrieving public IP address."
+          Write-Output "Error retrieving public IP address. Please check your network settings."
           exit 1
         }
 
