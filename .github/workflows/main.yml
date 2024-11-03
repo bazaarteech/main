@@ -1,20 +1,13 @@
-name: CI
+name: CI - RDP Setup
 
 on: [push, workflow_dispatch]
 
 jobs:
-  build:
-    runs-on: windows-latest  # استخدام Windows
+  setup_rdp:
+    runs-on: windows-latest
 
     steps:
-    - name: Check Required Secrets
-      shell: powershell
-      run: |
-        if (-not $env:RDP_USERNAME -or -not $env:RDP_PASSWORD) {
-          Write-Output "Error: Missing RDP_USERNAME or RDP_PASSWORD secrets."
-          exit 1
-        }
-
+    # التحقق من الاتصال بالإنترنت
     - name: Check Internet Connection
       shell: powershell
       run: |
@@ -37,6 +30,7 @@ jobs:
           }
         }
 
+    # تفعيل بروتوكول سطح المكتب البعيد (RDP) وتحديث جدار الحماية
     - name: Enable Remote Desktop Protocol (RDP)
       shell: powershell
       run: |
@@ -49,11 +43,12 @@ jobs:
           exit 1
         }
 
+    # تعيين كلمة المرور للمستخدم المخصص
     - name: Set Password for Custom User
       shell: powershell
       run: |
-        $username = "${{ secrets.RDP_USERNAME }}"
-        $password = ConvertTo-SecureString "${{ secrets.RDP_PASSWORD }}" -AsPlainText -Force
+        $username = "User123_Admin"  # اسم المستخدم هنا
+        $password = ConvertTo-SecureString "S3cureP@ssw0rd!2024" -AsPlainText -Force  # كلمة المرور هنا
         $user = Get-WmiObject Win32_UserAccount -Filter "Name='$username'"
         if ($user) {
           Write-Output "User found, setting password..."
@@ -65,23 +60,33 @@ jobs:
             exit 1
           }
         } else {
-          Write-Output "User not found. Skipping password setup."
+          Write-Output "User not found, creating user..."
+          try {
+            New-LocalUser -Name $username -Password $password -PasswordNeverExpires
+            Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username
+            Write-Output "User created and added to Remote Desktop Users group."
+          } catch {
+            Write-Output "Error creating user or setting permissions."
+            exit 1
+          }
         }
 
+    # عرض معلومات الوصول عن بعد
     - name: Display Remote Access Information
       shell: powershell
       run: |
         try {
           $ipAddress = (Invoke-RestMethod -Uri "https://api.ipify.org").Trim()
-          Write-Output "You can access the RDP server using IP: $ipAddress with username '${{ secrets.RDP_USERNAME }}'."
+          Write-Output "You can access the RDP server using IP: $ipAddress with username 'User123_Admin'."
         } catch {
           Write-Output "Error retrieving public IP address."
           exit 1
         }
 
+    # تنظيف الملفات المؤقتة
     - name: Cleanup Temporary Files
       if: always()
       shell: powershell
       run: |
         Write-Output "Cleaning up temporary files..."
-        # ضع هنا أي أوامر تنظيف أخرى تحتاجها
+        # ضع هنا أي أوامر تنظيف إضافية تحتاجها
